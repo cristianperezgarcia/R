@@ -1,0 +1,88 @@
+---
+title: "Finanzas"
+output: html_document
+date: '2024-02-22'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Cargamos las librerías necesarias para realizar las tareas.
+
+```{r load libraries, include=FALSE}
+
+library(tidyverse)
+
+library(tidytext)
+library(textclean)
+library(tokenizers)
+
+library(markovchain)
+
+```
+Iniciamos los datos para construir la trayectoria.
+
+```{r finanzas}
+# Consideraremos que conocemos el estados de las noticias y la relación con el 
+# mercado
+
+estados <- c("Sube", "SeMantiene", "Baja")
+
+# Matriz de transición para la variación del activo financiero
+trans_variacion <- matrix(c(0.7, 0.2, 0.1, 0.1, 0.6, 0.3, 0.05, 0.1, 0.85),
+                          byrow = TRUE, nrow = 3, dimnames = list(estados, estados))
+```
+
+```{r mc finanzas}
+
+cadena_variacion <- new("markovchain", states = estados,
+                        byrow = TRUE, transitionMatrix = trans_variacion)
+
+```
+```{r simulacion}
+
+simulacion_variacion <- vector("list", length = length(noticias_semana))
+simulacion_variacion[[1]] <- list(Mercado = sample(mercado, 1), Variacion = sample(estados, 1))
+
+set.seed(2408)
+
+for (i in 2:length(noticias_semana)) {
+  noticia <- noticias_semana[i]
+  
+  # Simulación del estado del mercado
+  if (noticia == "Pos") {
+    mercado_actual <- rmarkovchain(n = 1, object = cadena_pos, t0 = simulacion_variacion[[i-1]]$Mercado)
+  } else if (noticia == "Neu") {
+    mercado_actual <- rmarkovchain(n = 1, object = cadena_neu, t0 = simulacion_variacion[[i-1]]$Mercado)
+  } else {
+    mercado_actual <- rmarkovchain(n = 1, object = cadena_neg, t0 = simulacion_variacion[[i-1]]$Mercado)
+  }
+  
+  # Simulación de la variación del activo
+  variacion_actual <- rmarkovchain(n = 1, object = cadena_variacion, t0 = simulacion_variacion[[i-1]]$Variacion)
+  
+  simulacion_variacion[[i]] <- list(Mercado = mercado_actual, Variacion = variacion_actual)
+}
+
+# Cálculo del tiempo medio hasta la caída del activo
+tiempo_hasta_caida <- 0
+for (i in 1:length(simulacion_variacion)) {
+  if (simulacion_variacion[[i]]$Variacion == "Baja") {
+    tiempo_hasta_caida <- i
+    break
+  }
+}
+
+
+```
+
+```{r resultado}
+
+print("Simulación de la variación del activo financiero:")
+simulacion_variacion
+
+print(paste("Tiempo medio hasta la caída del activo: ", tiempo_hasta_caida, " días"))
+
+```
